@@ -1,20 +1,19 @@
-package Printer::Receipt;
+package Printer::TM;
 
 use Moo;
 
 use IO::Handle;
 use GD::Barcode::QRcode;
 
-use Printer::Receipt::BitArray;
-
+use Printer::TM::BitArray;
 #use Printer::TM::Serial;
 #use Printer::TM::Parallel;
 #use Printer::TM::USB;
 
-has dots => (
-  is => 'rw',
-  required => '0',
-  default => sub { 8 }  
+has char_device => (
+  is => 'ro',
+  required => 1,
+  default => sub { '/dev/tts/USB0' }
 );
 
 has document => (
@@ -27,7 +26,9 @@ has handle => (
   is => 'ro',
   required => 1,
   default => sub {
-    open(my $fh, ">", '/dev/tts/USB0');
+    my $self = shift;
+
+    open(my $fh, ">", $self->char_device() );
     binmode($fh);
     $fh->autoflush;
 
@@ -39,75 +40,33 @@ sub BUILD {
   my $self = shift;
 
   #REINITIALIZE PRINTER
-  my $esc_pos_command = $self->kbyte(27) . "@";
-
-  $self->document($esc_pos_command);
+  $self->reset();
 }
 
-sub image {
+sub reset {
   my $self = shift;
-  my $path = shift;
-  my $dots = shift || 24;
-  
-  print STDERR "### $dots\n";
-  
-  my $bit_array = Printer::Receipt::BitArray->new(path => $path);
 
-  $self->output();                                      # empty buffer
-  
-  $self->append( $self->kbyte(27) . "3" . $self->kbyte(24) );
-  
-  my $nlow = $bit_array->width() % 256;
-  my $nhigh = ($bit_array->width() >> 8) % 256;
-  
-  my $offset = 0;
-  my $line_size = 0;
-  
-  while($offset < $bit_array->height()) {
-    $self->append($self->kbyte(27) . "*" . $self->kbyte( $dots == 24 ? 33 : 0 ));        # 24 dot double density
-    $self->append($self->kbyte($nlow) . $self->kbyte($nhigh));       # low byte and high byte
+  $self->document( chr(27) . "@"; );
+}
 
-    for (my $x = 0; $x < $bit_array->width(); ++$x) {         # walk through columns
-      for (my $k = 0; $k < $dots/8; ++$k) {                        # 24 dots = 24 bits = 3 bytes ($k)
-        my $byte = 0;                                     # start a byte
+sub font {
+  my $self = shift;
+  my $type = shift;
 
-        for (my $b = 0; $b < 8; ++$b) {                     # 1 byte = 8 bits ($b)
-          my $y = ((($offset / 8) + $k) * 8) + $b;       # calculate $y position
-          my $i = ($y * $bit_array->width()) + $x;       # calculate pixel position
-
-          # check if bit exists, if not, zero it
-          # ====================================
-
-          my $bit = 0;
-
-          if ( defined $bit_array->dots()->[$i] ) {
-            $bit = $bit_array->dots()->[$i] ? 1 : 0;
-          } else {
-            $bit = 0;
-          }
-
-          $byte |= $bit << (7 - $b);                  # shift bit and record byte
-        }
-        print STDERR "$byte\n" if ($byte > 255 || $byte < 0); 
-
-        $self->append(chr($byte));                 # attach the byte
-        $line_size++;
-      }
-    }
-
-    $offset += $dots;
-    $self->append($self->kbyte(10));                          # line feed
-    $line_size = 0;
+  if ( uc($type) eq uc('bold') ) {
+    $self->append( chr(27)."!".chr(32) );
+  } else {
+    $self->append( chr(27)."!".chr(0) );
   }
 }
 
 sub align {
   my $self = shift;
-  my $alignment = shift || 'L';
+  my $alignment = shift
   
-  if ($alignment eq 'R') {
+  if ( uc($alignment) eq uc('right') ) {
     $self->append( chr(27)."a".chr(50) );
-  } elsif ($alignment eq 'C') {   
+  } elsif ( uc($alignment) eq uc('center') ) {   
     $self->append( chr(27)."a".chr(49) );
   } else {
     $self->append( chr(27)."a".chr(48) );   
@@ -134,19 +93,9 @@ sub cut {
   my $self = shift;
   my $lines = shift || 1;
 
-  my $feed = $self->kbyte($lines);
+  my $feed = chr($lines);
 
-  $self->append( $self->kbyte(29) . "V". $self->kbyte(65) . $feed );
-}
-
-sub output {
-  my $self = shift;
-  
-  my $fh = $self->handle();
-  
-  print $fh $self->document();
-
-  $self->document(''); 
+  $self->append( chr(29) . "V". chr(65) . $feed );
 }
 
 sub text {
@@ -163,11 +112,69 @@ sub append {
   $self->document( $self->document() . $str );
 }
 
-sub kbyte {
+sub print {
   my $self = shift;
-  my $val = shift;
+  
+  my $fh = $self->handle();
+  print $fh $self->document();
 
-  return pack('C', $val);
+  $self->document(''); 
 }
+
+sub image {
+  my $self = shift;  
+  my $path = shift;
+  my $density = shift || 0;
+
+  my $dpis = $density ? 24 : 8 
+  my $print_mode = $dpis == 24 ? 33 : 0;
+        
+  my $nlow = $bit_array->width() % 256;
+  my $nhigh = ($bit_array->width() >> 8) % 256;
+  
+  my $offset = 0;
+  my $line_size = 0;
+
+  my $bit_array = Printer::TM::BitArray->new( path => $path, dpis => $dpis );  
+
+  $self->append( chr(27) . "3" . chr(24) );
+  
+  while($offset < $bit_array->height()) {
+    $self->append(chr(27) . "*" . chr($print_mode));                   # Single or double density
+    $self->append(chr($nlow) . chr($nhigh));                           # low byte and high byte
+
+    for (my $x = 0; $x < $bit_array->width(); ++$x) {                  # walk through columns
+      for (my $k = 0; $k < $dots/8; ++$k) {                            # 24 dots = 24 bits = 3 bytes ($k)
+        my $byte = 0;                                                  # start a byte
+
+        for (my $b = 0; $b < 8; ++$b) {                                # 1 byte = 8 bits ($b)
+          my $y = ((($offset / 8) + $k) * 8) + $b;                     # calculate $y position
+          my $i = ($y * $bit_array->width()) + $x;                     # calculate pixel position
+
+          # check if bit exists, if not, zero it
+          # ====================================
+
+          my $bit = 0;
+
+          if ( defined $bit_array->dots()->[$i] ) {
+            $bit = $bit_array->dots()->[$i] ? 1 : 0;
+          } else {
+            $bit = 0;
+          }
+
+          $byte |= $bit << (7 - $b);                  # shift bit and record byte
+        }
+
+        $self->append(chr($byte));                 # attach the byte
+        $line_size++;
+      }
+    }
+
+    $offset += $dots;
+    $self->append(chr(10));                          # line feed
+    $line_size = 0;
+  }
+}
+
 
 1;

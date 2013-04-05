@@ -1,4 +1,4 @@
-package Printer::Receipt::BitArray;
+package Printer::TM::BitArray;
 
 use Moo;
 
@@ -16,6 +16,12 @@ has height => (
   is => 'rw'
 );
 
+has dpis => (
+  is => 'rw',
+  required => 0,
+  default => sub { 8 }
+);
+
 has path => (
   is => 'rw',
   required => 1
@@ -23,6 +29,7 @@ has path => (
 
 sub BUILD {
   my $self = shift;
+  my $dpis = shift;
   
   my $img = GD::Image->new( $self->path() );
   
@@ -34,7 +41,7 @@ sub BUILD {
 
   $self->width() = 575 if ( $self->width() > 575 );
   
-  #RESIZE HERE
+  #WE STILL NEED TO RESIZE THE IMAGE PROPERLY
 
   for (my $hi = 0; $hi < $self->height(); $hi++) {
     for (my $wi = 0; $wi < $self->width(); $wi++) {
