@@ -1,0 +1,65 @@
+Thoughts on this
+
+ESCPOS::Printer
+	Properties
+		buffer # OBJECT OF TYPE ESCPOS::Printer::Buffer
+		device # OBJECT OF TYPE ESCPOS::Printer::Device
+		#THE FOLLOWING ARE PROBABLY BETTER SUITED FOR A ROLE CALLED ESCPOS::Printer::CanDo
+		max_width
+		can_do_color
+		can_do_drawer
+		can_do_cut
+		can_do_image
+	Methods
+		bold
+		underline
+		double_width
+		double_height
+		italic
+		align
+		cut
+		drawer
+		image
+		text
+		qrcode
+		barcode
+		reset
+		print
+
+ESCPOS::Printer::Image (Class)
+	Properties
+		file
+	Methods
+		resize( $density )
+		bitarray( $img )
+		barcode( $type, $data )
+
+
+ESCPOS::Printer::Buffer
+	Properties
+		data
+	Method
+		push
+		pop
+		clear
+
+ESCPOS::Printer::Device
+	Properties
+		port # DEFINES WHICH PORT TO USE /dev/usb/, dev/tts, etc...
+	Methods
+		BUILD calls init
+		init # INITIALIZATION STUFF TIPICALLY FOR SERIAL PRINTERS
+
+ESCPOS::Printer::Device::Serial
+	Properties
+		baud
+		databits
+		stopbits
+		parity
+		etc..
+
+ESCPOS::Printer::Device::Parallel
+	Stub nothing here
+
+ESCPOS::Printer::Device::USB
+	Methods Init
