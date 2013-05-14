@@ -1,11 +1,14 @@
 package ESCPOS::Printer;
 
+#AUTHORS: carlosnunomota@gmail.com, karlus@karlus.net
+
 use Moo;
 use GD::Barcode::QRcode;
 
 use ESCPOS::Printer::Image;
 use ESCPOS::Printer::Buffer;
 use ESCPOS::Printer::Device;
+use ESCPOS::Printer::Image;
 
 has buffer => (
 	is => 'ro',
@@ -131,58 +134,13 @@ sub reset {
 }
 
 sub image {
-	my $self = shift;	
+	my $self = shift;
 	my $path = shift;
-	my $density = shift || 0;
+	my $density = shift || 'SD';
 
-	my $dpis = $density eq 'HD' ? 24 : 8 
-	my $print_mode = $dpis == 24 ? 33 : 0;
-				
-	my $nlow = $bit_array->width() % 256;
-	my $nhigh = ($bit_array->width() >> 8) % 256;
-	
-	my $offset = 0;
-	my $line_size = 0;
+	my $image = ESCPOS::Printer::Image->new( path => $path, density => $density)
 
-	my $bit_array = ESCPOS::Printer::Image->new( path => $path, dpis => $dpis );	
-
-	$self->append( chr(27) . "3" . chr(24) );
-	
-	while($offset < $bit_array->height()) {
-		$self->append(chr(27) . "*" . chr($print_mode));									 # Single or double density
-		$self->append(chr($nlow) . chr($nhigh));													 # low byte and high byte
-
-		for (my $x = 0; $x < $bit_array->width(); ++$x) {									# walk through columns
-			for (my $k = 0; $k < $dots/8; ++$k) {														# 24 dots = 24 bits = 3 bytes ($k)
-				my $byte = 0;																									# start a byte
-
-				for (my $b = 0; $b < 8; ++$b) {																# 1 byte = 8 bits ($b)
-					my $y = ((($offset / 8) + $k) * 8) + $b;										 # calculate $y position
-					my $i = ($y * $bit_array->width()) + $x;										 # calculate pixel position
-
-					# check if bit exists, if not, zero it
-					# ====================================
-
-					my $bit = 0;
-
-					if ( defined $bit_array->dots()->[$i] ) {
-						$bit = $bit_array->dots()->[$i] ? 1 : 0;
-					} else {
-						$bit = 0;
-					}
-
-					$byte |= $bit << (7 - $b);									# shift bit and record byte
-				}
-
-				$self->append(chr($byte));								 # attach the byte
-				$line_size++;
-			}
-		}
-
-		$offset += $dots;
-		$self->append(chr(10));													# line feed
-		$line_size = 0;
-	}
+    $self->buffer()->push( $image->escpos() );
 }
 
 sub print {
