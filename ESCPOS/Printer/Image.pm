@@ -91,21 +91,25 @@ sub resize {
   my $max_width = $self->max_width();
   $max_width = int( $max_width * $self->density_map()->{ $self->density() }->{scalex} );
 
+  my $scalex = 1;
+
   if ($width > $max_width) {
-  	my $scalex = $max_width / $width;
-  	my $scaley = $scalex * $self->density_map()->{ $self->density() }->{scalex} / $self->density_map()->{ $self->density() }->{scaley};
+  	$scalex = $max_width / $width;
+  }
+  
+  my $scaley = $scalex * $self->density_map()->{ $self->density() }->{scalex} / $self->density_map()->{ $self->density() }->{scaley};
 
-    my $nwidth = int($width * $scalex);
-    my $nheight = int($height * $scaley);
+  my $nwidth = int($width * $scalex);
+  my $nheight = int($height * $scaley);
 
-    my $image = GD::Image->new($nwidth, $nheight);
-    $image->copyResampled( $orig,0,0,0,0,$nwidth,$nheight,$width,$height );
+  if ($scalex == 1 && $scaley == 1) {
+  	my $image = GD::Image->new($nwidth, $nheight);
+  	$image->copyResampled( $orig,0,0,0,0,$nwidth,$nheight,$width,$height );
 
-    return $image;
+  	return $image;
   } else {
   	return $orig;
   }
-  
 }
 
 sub escpos {
