@@ -46,12 +46,12 @@ has density => (
 );
 
 has density_map => (
-	 is => 'ro',
-	 required => 0,
-	 default => sub {
+	is => 'ro',
+	required => 0,
+	default => sub {
 	 	  {
 	 	  	'HD' => { vdpi => 180, hdpi => 180, vbits => 24, scalex => 1, scaley => 1 },
-	 	  	'SD' => { vdpi => 60, hdpi => 90, vbits => 8, scalex => 60/180, scaley => 90/180 }
+	 	  	'SD' => { vdpi => 60, hdpi => 90, vbits => 8, scalex => 90/180, scaley => 60/180 }
 	 	  }
 	 }
 );
@@ -63,6 +63,8 @@ sub BUILD {
 	$img = $self->resize( $img );
 	
 	my ($width,$height) = $img->getBounds();
+
+	print STDERR "FINAL WIDTH : $width x $height\n";
 
 	$self->width( $width );
 	$self->height( $height );
@@ -91,24 +93,35 @@ sub resize {
   my $max_width = $self->max_width();
   $max_width = int( $max_width * $self->density_map()->{ $self->density() }->{scalex} );
 
-  my $scalex = 1;
+  print STDERR "### MAX WIDTH: $max_width\n";
+
+  my $factor = 1;
 
   if ($width > $max_width) {
-  	$scalex = $max_width / $width;
+  	$factor = $max_width / $width;
+  } else {
+  	$factor = $self->density_map()->{ $self->density() }->{scalex};
   }
-  
-  my $scaley = $scalex * $self->density_map()->{ $self->density() }->{scalex} / $self->density_map()->{ $self->density() }->{scaley};
+
+  my $scalex = $factor;
+  my $scaley = $factor * $self->density_map()->{ $self->density() }->{scaley} / $self->density_map()->{ $self->density() }->{scalex};
+
+  print STDERR "## SCALEX : $scalex\n";
+  print STDERR "## SCALEY : $scaley\n";
 
   my $nwidth = int($width * $scalex);
   my $nheight = int($height * $scaley);
 
+  print STDERR "## NWIDTH: $nwidth\n";
+  print STDERR "## NHEIGHT: $nheight\n";
+
   if ($scalex == 1 && $scaley == 1) {
+  	return $orig;
+  } else {
   	my $image = GD::Image->new($nwidth, $nheight);
   	$image->copyResampled( $orig,0,0,0,0,$nwidth,$nheight,$width,$height );
 
   	return $image;
-  } else {
-  	return $orig;
   }
 }
 
@@ -118,6 +131,8 @@ sub escpos {
 
 	my $dpis = $self->density_map()->{ $self->density() }->{vbits}; # 'HD' ? 24 : 8;
 	my $print_mode = $dpis == 24 ? 33 : 0;
+
+	print STDERR "$dpis ## $print_mode\n";
 				
 	my $nlow = $self->width() % 256;
 	my $nhigh = ($self->width() >> 8) % 256;
@@ -127,11 +142,11 @@ sub escpos {
 
 	$out .= chr(27) . "3" . chr(24);
 	
-	while($offset < $self->dots()->height()) {
+	while($offset < $self->height()) {
 		$out .= chr(27) . "*" . chr($print_mode);
 		$out .= chr($nlow) . chr($nhigh);
 
-		for (my $x = 0; $x < $self->dots()->width(); ++$x) {
+		for (my $x = 0; $x < $self->width(); ++$x) {
 			for (my $k = 0; $k < $dpis/8; ++$k) {
 				my $byte = 0;
 
@@ -159,6 +174,8 @@ sub escpos {
 		$out .= chr(10);												 # line feed
 		$line_size = 0;
 	}
+
+	return $out;
 }
 
 1;

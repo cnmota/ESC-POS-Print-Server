@@ -8,11 +8,13 @@ use GD::Barcode::QRcode;
 use ESCPOS::Printer::Image;
 use ESCPOS::Printer::Buffer;
 use ESCPOS::Printer::Device;
-use ESCPOS::Printer::Image;
 
 has buffer => (
 	is => 'ro',
-	required => 1
+	required => 0,
+	default => sub {
+		return ESCPOS::Printer::Buffer->new();
+	}
 );
 
 has device => (
@@ -22,16 +24,33 @@ has device => (
 
 has max_width => (
 	is => 'ro',
-	required => 1
+	required => 0,
+	default => sub { 576 }
 );
 
-has can_do_color => ();
+has can_do_color => (
+	is => 'rw',
+	required => 0,
+	default => sub { 1 }
+);
 
-has can_do_drawer => ();
+has can_do_drawer => (
+	is => 'rw',
+	required => 0,
+	default => sub { 1 }
+);
 
-has can_do_image => ();
+has can_do_image => (
+	is => 'rw',
+	required => 0,
+	default => sub { 1 }
+);
 
-has can_do_cut => ();
+has can_do_cut => (
+	is => 'rw',
+	required => 0,
+	default => sub { 1 }
+);
 
 sub BUILD {
 	my $self = shift;
@@ -39,10 +58,6 @@ sub BUILD {
 		#INIT PRINTER
 
 	$self->buffer()->push( chr(27) . "@" );
-}
-
-sub bold {
-
 }
 
 sub underline {
@@ -58,46 +73,30 @@ sub underline {
 	}
 }
 
-sub double_width {
-
-}
-
-sub double_height {
-
-}
-
-sub italic {
-
-}
-
 sub align {
 	my $self = shift;
 	my $alignment = shift || 'L';
 		
 	if ($alignment eq 'R') {
-			$self->buffer()->push( chr(27)."a".chr(50) );
+		$self->buffer()->push( chr(27)."a".chr(50) );
 	} elsif ($alignment eq 'C') {	 
-			$self->buffer()->push( chr(27)."a".chr(49) );
+		$self->buffer()->push( chr(27)."a".chr(49) );
 	} else {
-			$self->buffer()->push( chr(27)."a".chr(48) );	 
+		$self->buffer()->push( chr(27)."a".chr(48) );	 
 	}
 }
 
 sub cut {
 	my $self = shift;
-		my $lines = shift || 1;
+	my $lines = shift || 1;
 
-		my $feed = chr($lines);
+	my $feed = chr($lines);
 
-		$self->buffer()->push( chr(29) . "V". chr(65) . $feed );
-}
-
-sub drawer {
-
+	$self->buffer()->push( chr(29) . "V". chr(65) . $feed );
 }
 
 sub linefeed {
-	my $self = shift
+	my $self = shift;
 
 	$self->buffer()->push( chr(10) );
 }
@@ -107,7 +106,6 @@ sub text {
 	my $str = shift;
 
 	$self->buffer()->push( $str );
-
 }
 
 sub qrcode {
@@ -122,15 +120,7 @@ sub qrcode {
 	print $out $r->png;
 	close $out;
 		
-	$self->image("/tmp/qrcode.png",'HD');
-}
-
-sub barcode {
-
-}
-
-sub reset {
-
+	$self->image("/tmp/qrcode.png",'SD');
 }
 
 sub image {
@@ -138,15 +128,38 @@ sub image {
 	my $path = shift;
 	my $density = shift || 'SD';
 
-	my $image = ESCPOS::Printer::Image->new( path => $path, density => $density)
+	my $image = ESCPOS::Printer::Image->new( path => $path, density => $density);
 
-    $self->buffer()->push( $image->escpos() );
+	$self->buffer()->push( $image->escpos() );
 }
 
 sub print {
 	my $self = shift;
 		
-		$self->device()->print( $self->buffer()->dump() );
+	$self->device()->print( $self->buffer()->dump() );
 
-		$self->buffer()->reset();
+	$self->buffer()->clear();
 }
+
+sub bold {
+}
+
+sub barcode {
+}
+
+sub reset {
+}
+
+sub drawer {
+}
+
+sub double_width {
+}
+
+sub double_height {
+}
+
+sub italic {
+}
+
+1;

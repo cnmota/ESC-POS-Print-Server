@@ -5,6 +5,9 @@ use Moo;
 has data => (
   is => 'rw',
   required => 0,
+  default => sub { 
+    return '';
+  }
 );
 
 sub clear {
