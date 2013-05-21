@@ -52,6 +52,12 @@ has can_do_cut => (
 	default => sub { 1 }
 );
 
+has cache => (
+	is => 'rw',
+	required => 0,
+	default => sub { '/tmp/' }
+);
+
 sub BUILD {
 	my $self = shift;
 
@@ -120,17 +126,43 @@ sub qrcode {
 	print $out $r->png;
 	close $out;
 		
-	$self->image("/tmp/qrcode.png",'SD');
+	$self->image("/tmp/qrcode.png",'SD',1);
 }
 
 sub image {
 	my $self = shift;
 	my $path = shift;
 	my $density = shift || 'SD';
+	my $ignore_cache = shift || 0;
 
-	my $image = ESCPOS::Printer::Image->new( path => $path, density => $density);
+	my $raw_image = "";
 
-	$self->buffer()->push( $image->escpos() );
+	if ($self->cache() && !$ignore_cache) {
+  	my $filename = $path;
+  	$path =~ s/\./#/g;
+  	$path =~ s/\//_/g;
+
+		if ( -e $self->cache().'/'.$filename.'.escpos.'.$density ) {
+			open my $fh, "<" , $self->cache().'/'.$filename.'.escpos.'.$density;
+			my $raw_image = do { local $/; <$fh> };
+			close $fh;
+
+			$self->buffer()->push( $raw_image );
+		} else {
+			my $image = ESCPOS::Printer::Image->new( path => $path, density => $density);
+			$raw_image = $image->escpos();
+
+			open my $fh, ">" , $self->cache().'/'.$filename.'.escpos.'.$density;
+			binmode($fh);
+			print $fh $raw_image;
+			close $fh;
+		}
+	} else {
+		my $image = ESCPOS::Printer::Image->new( path => $path, density => $density);
+		$raw_image = $image->escpos();
+	}
+
+  $self->buffer()->push( $raw_image );
 }
 
 sub print {

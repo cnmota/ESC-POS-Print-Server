@@ -100,7 +100,7 @@ sub resize {
   if ($width > $max_width) {
   	$factor = $max_width / $width;
   } else {
-  	$factor = $self->density_map()->{ $self->density() }->{scalex};
+ 		$factor = $max_width / $max_width * $self->density_map()->{ $self->density() }->{scalex};
   }
 
   my $scalex = $factor;
