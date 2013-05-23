@@ -42,7 +42,7 @@ has max_width => (
 has density => (
 	is => 'rw',
 	required => 0,
-	default => sub { 'SD' }
+	default => sub { '8SD' }
 );
 
 has density_map => (
@@ -50,8 +50,10 @@ has density_map => (
 	required => 0,
 	default => sub {
 	 		{
-	 			'HD' => { vdpi => 180, hdpi => 180, vbits => 24, scalex => 1, scaley => 1 },
-	 			'SD' => { vdpi => 60, hdpi => 90, vbits => 8, scalex => 90/180, scaley => 60/180 }
+	 			'24DD' => { print_mode => 33, vbits => 24, scalex => 1,       scaley => 1 },
+	 			'24SD' => { print_mode => 32, vbits => 24, scalex => 90/180,  scaley => 180/180 },
+	 			'8DD' =>  { print_mode =>  1, vbits =>  8, scalex => 180/180, scaley => 60/180 },	 			
+	 			'8SD' =>  { print_mode =>  0, vbits =>  8, scalex => 90/180,  scaley => 60/180 }
 	 		}
 	 }
 );
@@ -99,25 +101,25 @@ sub resize {
 		$factor = $max_width / $width;
 	}
 
-#	print STDERR "## ORIG WIDTH : $width\n";
-#	print STDERR "## ORIG HEIGHT : $height\n";
+	print STDERR "## ORIG WIDTH : $width\n";
+	print STDERR "## ORIG HEIGHT : $height\n";
 
 	#IMAGE IS SD WE MUST SCALE DOWN FROM HD
-	if ($self->density() eq 'SD') {
+	if ($self->density() ne '24DD') {
 		$factor = $factor * $self->density_map()->{ $self->density() }->{scalex};
 	}
 
 	my $scalex = $factor;
 	my $scaley = $factor * $self->density_map()->{ $self->density() }->{scaley} / $self->density_map()->{ $self->density() }->{scalex};
 
-#	print STDERR "## SCALEX : $scalex\n";
-#	print STDERR "## SCALEY : $scaley\n";
+	print STDERR "## SCALEX : $scalex\n";
+	print STDERR "## SCALEY : $scaley\n";
 
 	my $nwidth = int($width * $scalex);
 	my $nheight = int($height * $scaley);
 
-#	print STDERR "## NWIDTH: $nwidth\n";
-#	print STDERR "## NHEIGHT: $nheight\n";
+	print STDERR "## NWIDTH: $nwidth\n";
+	print STDERR "## NHEIGHT: $nheight\n";
 
 	if ($scalex == 1 && $scaley == 1) {
 		return $orig;
@@ -134,7 +136,7 @@ sub escpos {
 	my $out = "";
 
 	my $dpis = $self->density_map()->{ $self->density() }->{vbits}; # 'HD' ? 24 : 8;
-	my $print_mode = $dpis == 24 ? 33 : 0;
+	my $print_mode = $self->density_map()->{ $self->density() }->{print_mode};
 
 	print STDERR "$dpis ## $print_mode\n";
 				
