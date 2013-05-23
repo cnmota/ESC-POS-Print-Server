@@ -132,11 +132,11 @@ sub qrcode {
 sub image {
 	my $self = shift;
 	my $path = shift;
-	my $density = shift || 'SD';
+	my $density = shift || '24SD';
 	my $ignore_cache = shift || 0;
 
 	my $raw_image = "";
-
+	
 	if ($self->cache() && !$ignore_cache) {
 		my $filename = $path;
 		$filename =~ s/\./#/g;
@@ -176,21 +176,45 @@ sub print {
 }
 
 sub bold {
+	my $self = shift;
+	my $mode = shift;
+		
+	$self->buffer()->push( chr(27)."E" );
+		
+	if ($mode) {
+		$self->buffer()->push( chr(49) );
+	} else {
+		$self->buffer()->push( chr(48) );
+	}
 }
 
 sub barcode {
 }
 
-sub reset {
-}
-
-sub drawer {
-}
-
 sub double_width {
+	my $self = shift;
+	my $mode = shift;
+		
+	$self->buffer()->push( chr(27)."!" );
+		
+	if ($mode) {
+		$self->buffer()->push( chr(32) );
+	} else {
+		$self->buffer()->push( chr(0) );
+	}
 }
 
 sub double_height {
+	my $self = shift;
+	my $mode = shift;
+		
+	$self->buffer()->push( chr(27)."!" );
+		
+	if ($mode) {
+		$self->buffer()->push( chr(16) );
+	} else {
+		$self->buffer()->push( chr(0) );
+	}
 }
 
 sub italic {
