@@ -138,11 +138,13 @@ sub image {
 	my $raw_image = "";
 
 	if ($self->cache() && !$ignore_cache) {
-  	my $filename = $path;
-  	$path =~ s/\./#/g;
-  	$path =~ s/\//_/g;
+		my $filename = $path;
+		$filename =~ s/\./#/g;
+		$filename =~ s/\//_/g;
 
 		if ( -e $self->cache().'/'.$filename.'.escpos.'.$density ) {
+			print STDERR "LOAD FROM CACHE\n";
+
 			open my $fh, "<" , $self->cache().'/'.$filename.'.escpos.'.$density;
 			my $raw_image = do { local $/; <$fh> };
 			close $fh;
@@ -162,7 +164,7 @@ sub image {
 		$raw_image = $image->escpos();
 	}
 
-  $self->buffer()->push( $raw_image );
+	$self->buffer()->push( $raw_image );
 }
 
 sub print {

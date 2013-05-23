@@ -32,9 +32,9 @@ has path => (
 has max_width => (
 	is => 'rw',
 	required => 0,
-  default => sub {
-  	return 576;
-  }
+	default => sub {
+		return 576;
+	}
 );
 
 #DENSITY
@@ -42,17 +42,17 @@ has max_width => (
 has density => (
 	is => 'rw',
 	required => 0,
-  default => sub { 'SD' }
+	default => sub { 'SD' }
 );
 
 has density_map => (
 	is => 'ro',
 	required => 0,
 	default => sub {
-	 	  {
-	 	  	'HD' => { vdpi => 180, hdpi => 180, vbits => 24, scalex => 1, scaley => 1 },
-	 	  	'SD' => { vdpi => 60, hdpi => 90, vbits => 8, scalex => 90/180, scaley => 60/180 }
-	 	  }
+	 		{
+	 			'HD' => { vdpi => 180, hdpi => 180, vbits => 24, scalex => 1, scaley => 1 },
+	 			'SD' => { vdpi => 60, hdpi => 90, vbits => 8, scalex => 90/180, scaley => 60/180 }
+	 		}
 	 }
 );
 
@@ -88,41 +88,45 @@ sub resize {
 	my $self = shift;
 	my $orig = shift;
 
-  my ($width,$height) = $orig->getBounds();
+	my ($width,$height) = $orig->getBounds();
 
-  my $max_width = $self->max_width();
-  $max_width = int( $max_width * $self->density_map()->{ $self->density() }->{scalex} );
+	my $max_width = $self->max_width();
 
-  print STDERR "### MAX WIDTH: $max_width\n";
+	my $factor = 1;
 
-  my $factor = 1;
+	# SCALE IMAGE IF IMAGE IS BIGGER THAN HD MAX SIZE
+	if ($width > $max_width) {
+		$factor = $max_width / $width;
+	}
 
-  if ($width > $max_width) {
-  	$factor = $max_width / $width;
-  } else {
- 		$factor = $max_width / $max_width * $self->density_map()->{ $self->density() }->{scalex};
-  }
+#	print STDERR "## ORIG WIDTH : $width\n";
+#	print STDERR "## ORIG HEIGHT : $height\n";
 
-  my $scalex = $factor;
-  my $scaley = $factor * $self->density_map()->{ $self->density() }->{scaley} / $self->density_map()->{ $self->density() }->{scalex};
+	#IMAGE IS SD WE MUST SCALE DOWN FROM HD
+	if ($self->density() eq 'SD') {
+		$factor = $factor * $self->density_map()->{ $self->density() }->{scalex};
+	}
 
-  print STDERR "## SCALEX : $scalex\n";
-  print STDERR "## SCALEY : $scaley\n";
+	my $scalex = $factor;
+	my $scaley = $factor * $self->density_map()->{ $self->density() }->{scaley} / $self->density_map()->{ $self->density() }->{scalex};
 
-  my $nwidth = int($width * $scalex);
-  my $nheight = int($height * $scaley);
+#	print STDERR "## SCALEX : $scalex\n";
+#	print STDERR "## SCALEY : $scaley\n";
 
-  print STDERR "## NWIDTH: $nwidth\n";
-  print STDERR "## NHEIGHT: $nheight\n";
+	my $nwidth = int($width * $scalex);
+	my $nheight = int($height * $scaley);
 
-  if ($scalex == 1 && $scaley == 1) {
-  	return $orig;
-  } else {
-  	my $image = GD::Image->new($nwidth, $nheight);
-  	$image->copyResampled( $orig,0,0,0,0,$nwidth,$nheight,$width,$height );
+#	print STDERR "## NWIDTH: $nwidth\n";
+#	print STDERR "## NHEIGHT: $nheight\n";
 
-  	return $image;
-  }
+	if ($scalex == 1 && $scaley == 1) {
+		return $orig;
+	} else {
+		my $image = GD::Image->new($nwidth, $nheight);
+		$image->copyResampled( $orig,0,0,0,0,$nwidth,$nheight,$width,$height );
+
+		return $image;
+	}
 }
 
 sub escpos {
