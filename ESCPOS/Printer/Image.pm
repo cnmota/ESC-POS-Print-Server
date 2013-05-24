@@ -103,6 +103,7 @@ sub resize {
 
 	print STDERR "## ORIG WIDTH : $width\n";
 	print STDERR "## ORIG HEIGHT : $height\n";
+	print STDERR $self->density()."\n";
 
 	#IMAGE IS SD WE MUST SCALE DOWN FROM HD
 	if ($self->density() ne '24DD') {
