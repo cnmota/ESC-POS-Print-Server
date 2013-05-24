@@ -58,6 +58,29 @@ has cache => (
 	default => sub { '/tmp/' }
 );
 
+# COMMAND ESCAPE SEQUENCES
+
+has cmd_seq_cut => (
+	is => 'ro',
+	required => 0,
+	default => sub { chr(29) . "V". chr(65) . chr(1) }
+);
+
+has cmd_seq_pcut => (
+	is => 'ro',
+	required => 0,
+	default => sub { chr(27) . chr(105) }	
+);
+
+has cmd_seq_linefeed => (
+	is => 'ro',
+	required => 0,
+	default => sub { chr(27) . chr(100) }	
+);
+
+
+# METHODS
+
 sub BUILD {
 	my $self = shift;
 
@@ -126,13 +149,13 @@ sub qrcode {
 	print $out $r->png;
 	close $out;
 		
-	$self->image("/tmp/qrcode.png",'SD',1);
+	$self->image("/tmp/qrcode.png",'8DD',1);
 }
 
 sub image {
 	my $self = shift;
 	my $path = shift;
-	my $density = shift || '24SD';
+	my $density = shift || '8SD';
 	my $ignore_cache = shift || 0;
 
 	my $raw_image = "";
@@ -143,8 +166,6 @@ sub image {
 		$filename =~ s/\//_/g;
 
 		if ( -e $self->cache().'/'.$filename.'.escpos.'.$density ) {
-			print STDERR "LOAD FROM CACHE\n";
-
 			open my $fh, "<" , $self->cache().'/'.$filename.'.escpos.'.$density;
 			my $raw_image = do { local $/; <$fh> };
 			close $fh;
@@ -182,13 +203,10 @@ sub bold {
 	$self->buffer()->push( chr(27)."E" );
 		
 	if ($mode) {
-		$self->buffer()->push( chr(49) );
+		$self->buffer()->push( chr(1) );
 	} else {
-		$self->buffer()->push( chr(48) );
+		$self->buffer()->push( chr(0) );
 	}
-}
-
-sub barcode {
 }
 
 sub double_width {
@@ -217,7 +235,12 @@ sub double_height {
 	}
 }
 
-sub italic {
+sub search_replace {
+  my $self = shift;
+  my $search = shift;
+  my $replace = shift;
+
+  $self->buffer()->search_replace( $search, $replace );
 }
 
 1;
