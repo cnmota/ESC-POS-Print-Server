@@ -42,4 +42,18 @@ sub dump {
   return $self->data();
 }
 
+sub search_replace {
+  my $self = shift;
+  my $search = shift;
+  my $replace = shift;
+
+  if (defined $search && defined $replace) {
+    print STDERR "APPLY PATTERN\n";
+    my $data = $self->data();
+    $data =~ s/$search/$replace/g;
+
+    $self->data( $data );
+  }
+}
+
 1;
