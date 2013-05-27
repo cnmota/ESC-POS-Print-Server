@@ -63,10 +63,9 @@ sub BUILD {
 	
 	my $img = GD::Image->new( $self->path() );
 	$img = $self->resize( $img );
-	
-	my ($width,$height) = $img->getBounds();
+	$img = $self->dither( $img );
 
-	print STDERR "FINAL WIDTH : $width x $height\n";
+	my ($width,$height) = $img->getBounds();
 
 	$self->width( $width );
 	$self->height( $height );
@@ -84,6 +83,83 @@ sub BUILD {
 			}
 		}
 	}
+}
+
+sub dither {
+	my $self = shift;
+	my $img = shift;
+
+  my $img_xy = [];
+  my $x_max = $img->width();
+  my $y_max = $img->height();
+
+	for (my $x = 0; $x <= $x_max; $x++) {
+		$img_xy->[$x] = [] unless defined $img_xy->[$x];
+	  for (my $y = 0; $y <= $y_max; $y++) {
+	  	$img_xy->[$x]->[$y] = $img->rgb( $img->getPixel($x,$y) );
+		}
+	}
+
+	my $img_dither = GD::Image->new($x_max, $y_max, 1);
+  my $white = $img_dither->colorAllocate(255,255,255);
+  my $black = $img_dither->colorAllocate(0,0,0); 
+
+	my $w1=7/16;
+  my $w2=3/16;
+  my $w3=5/16;
+  my $w4=1/16;
+
+	for (my $y = 0; $y < $y_max; $y++) {
+		for (my $x = 0; $x < $x_max; $x++) {
+		  my $oldpixel = $img_xy->[$x]->[$y];
+		  my $newpixel = $oldpixel > 128 ? 255 : 0;
+      my $quant_error = $oldpixel - $newpixel;
+
+	    $img_dither->setPixel($x,$y,$newpixel ? $white : $black);
+
+      if ($x + 1 <= $x_max) {
+      	my $oldpixel = $img_xy->[$x+1]->[$y];
+      	my $newpixel = int( $oldpixel + ($w1 * $quant_error) );
+
+        $newpixel = 0 if ($newpixel < 0);
+        $newpixel = 255 if ($newpixel > 255);
+
+        $img_xy->[$x+1]->[$y] = $newpixel;
+      }
+
+      if (($x-1 > 0) && ($y+1 < $y_max)) {
+      	my $oldpixel = $img_xy->[$x-1]->[$y+1];
+      	my $newpixel = int( $oldpixel + ($w2 * $quant_error) );
+
+        $newpixel = 0 if ($newpixel < 0);
+        $newpixel = 255 if ($newpixel > 255);
+
+				$img_xy->[$x-1]->[$y+1] = $newpixel;
+      }
+
+      if ($y + 1 <= $y_max) {
+      	my $oldpixel = $img_xy->[$x]->[$y+1];
+      	my $newpixel = int ( $oldpixel + ($w3 * $quant_error) );
+
+        $newpixel = 0 if ($newpixel < 0);
+        $newpixel = 255 if ($newpixel > 255);
+
+        $img_xy->[$x]->[$y+1] = $newpixel;
+      }
+
+      if (($x + 1 <= $x_max) && ($y + 1 <= $y_max)) {
+      	my $oldpixel = $img_xy->[$x+1]->[$y+1];
+      	my $newpixel = int( $oldpixel + ($w4 * $quant_error) );
+
+        $newpixel = 0 if ($newpixel < 0);
+        $newpixel = 255 if ($newpixel > 255);
+
+      	$img_xy->[$x+1]->[$y+1] = $newpixel;
+      }
+	  }
+	}
+
+  return $img_dither;
 }
 
 sub resize {
@@ -127,6 +203,12 @@ sub resize {
 	} else {
 		my $image = GD::Image->new($nwidth, $nheight);
 		$image->copyResampled( $orig,0,0,0,0,$nwidth,$nheight,$width,$height );
+
+  my $png_data = $image->png( 0 );
+  open (DISPLAY,">resized.png") || die;
+  binmode DISPLAY;
+  print DISPLAY $png_data;
+  close DISPLAY;
 
 		return $image;
 	}
