@@ -50,10 +50,10 @@ has density_map => (
 	required => 0,
 	default => sub {
 	 		{
-	 			'24DD' => { print_mode => 33, vbits => 24, scalex => 1,       scaley => 1 },
-	 			'24SD' => { print_mode => 32, vbits => 24, scalex => 90/180,  scaley => 180/180 },
-	 			'8DD' =>  { print_mode =>  1, vbits =>  8, scalex => 180/180, scaley => 60/180 },	 			
-	 			'8SD' =>  { print_mode =>  0, vbits =>  8, scalex => 90/180,  scaley => 60/180 }
+	 			'24DD' => { print_mode => 33, vbits => 24, scalex => 1,			 scaley => 1 },
+	 			'24SD' => { print_mode => 32, vbits => 24, scalex => 90/180,	scaley => 180/180 },
+	 			'8DD' =>	{ print_mode =>	1, vbits =>	8, scalex => 180/180, scaley => 60/180 },	 			
+	 			'8SD' =>	{ print_mode =>	0, vbits =>	8, scalex => 90/180,	scaley => 60/180 }
 	 		}
 	 }
 );
@@ -71,12 +71,15 @@ sub BUILD {
 	$img = $self->resize( $img );
 
 	if ($self->dither_method() eq 'Atkinson') {
-		$img = $self->grayscale( $img )
+		$img = $self->grayscale( $img );
 		$img = $self->dither_atkinson( $img );
 	} elsif ($self->dither_method eq 'Floyd') {
-		$img = $self->grayscale( $img )
+		$img = $self->grayscale( $img );
 		$img = $self->dither_floyd( $img );
 	}
+
+	#$img = $self->resize( $img );
+	#$self->to_png($img, $self->dither_method().".png");
 
 	my ($width,$height) = $img->getBounds();
 
@@ -98,69 +101,105 @@ sub BUILD {
 	}
 }
 
+sub inv_gam_sRGB {
+	my $ic = shift;
+	
+	my $c = $ic/255;
+
+	if ( $c <= 0.04045 ) {
+		return $c/12.92;
+	} else { 
+		return (($c+0.055)/(1.055)) ** 2.4;
+	}
+}
+
+sub gam_sRGB {
+	my $v = shift;
+
+	if( $v <= 0.0031308) {
+		$v *= 12.92;
+	} else { 
+		$v = 1.055*($v ** (1.0/2.4)) - 0.055;
+		return int($v * 255 +.5);
+	}
+}
+
+sub grayscale_pixel {
+	my ($r, $g, $b) = @_;
+
+	my $rY = 0.212655;
+	my $gY = 0.715158;
+	my $bY = 0.072187;
+
+	return &gam_sRGB(
+		$rY * inv_gam_sRGB($r) + $gY * inv_gam_sRGB($g) + $bY * inv_gam_sRGB($b) 
+	);
+}
+
 sub grayscale {
 	my $self = shift;
 	my $img = shift;
+	#SHOULD BE MOVED TO FILTER ROLE
 
-  #CONVERT IMAGE TO GREYSSCALE
+	#CONVERT IMAGE TO GREYSSCALE
 	for (my $i = 0; $i < $img->colorsTotal(); $i++) {
 		my ($r, $g, $b) = $img->rgb($i);
-		my $gray = int( 0.21 * $r + 0.71 * $g + 0.07 * $b );
+		my $gray = &grayscale_pixel( $r, $g, $b );
 
 		$img->colorDeallocate($i);
 		$img->colorAllocate($gray,$gray,$gray);
 	}		
 
-  return $img;
+	return $img;
 }
 
 sub rgb2hex {
 	my $self = shift;
-  my ($r, $g, $b) = @_;
+	my ($r, $g, $b) = @_;
 
-  return hex( sprintf("0x%0X%0X%0X", $r, $g, $b) );
+	return hex( sprintf("0x%0X%0X%0X", $r, $g, $b) );
 }
 
 sub dither_atkinson {
 	my $self = shift;
 	my $img = shift;
 
-  my $img_xy = [];
-  my $x_max = $img->width();
-  my $y_max = $img->height();
+	my $img_xy = [];
+	my $x_max = $img->width();
+	my $y_max = $img->height();
 
-  my $threshold = $self->rgb2hex( 255, 255, 255 )*0.5;
+	my $threshold = $self->rgb2hex( 255, 255, 255 )*0.5;
 
 	for (my $x = 0; $x <= $x_max; $x++) {
 		$img_xy->[$x] = [] unless defined $img_xy->[$x];
-	  for (my $y = 0; $y <= $y_max; $y++) {
-	  	$img_xy->[$x]->[$y] = $self->rgb2hex( $img->rgb( $img->getPixel($x,$y) ) );
+		for (my $y = 0; $y <= $y_max; $y++) {
+			$img_xy->[$x]->[$y] = $self->rgb2hex( $img->rgb( $img->getPixel($x,$y) ) );
 		}
 	}
 
 	my $img_dither = GD::Image->new($x_max, $y_max, 1);
-  my $white = $img_dither->colorAllocate(255,255,255);
-  my $black = $img_dither->colorAllocate(0,0,0); 
+	my $white = $img_dither->colorAllocate(255,255,255);
+	my $black = $img_dither->colorAllocate(0,0,0); 
 
 	for (my $y = 0; $y < $y_max; $y++) {
 		for (my $x = 0; $x < $x_max; $x++) {
-		  my $oldpixel = $img_xy->[$x]->[$y];
-		  my $newpixel = $oldpixel > $threshold ? $white : $black;
-      my $quant_error = $oldpixel - $newpixel;
-      my $error_diffusion = (1/8)*$quant_error; 
+			my $oldpixel = $img_xy->[$x]->[$y];
+			my $newpixel = $oldpixel > $threshold ? $white : $black;
+			my $quant_error = $oldpixel - $newpixel;
+			my $error_diffusion = (1/8)*$quant_error; 
 
-	    $img_dither->setPixel($x,$y,$newpixel ? $white : $black);
+			$img_dither->setPixel($x,$y,$newpixel ? $white : $black);
 
-      $img_xy->[$x+1]->[$y] += $error_diffusion;
+			$img_xy->[$x+1]->[$y] += $error_diffusion;
 			$img_xy->[$x+2]->[$y] += $error_diffusion;
 			$img_xy->[$x-1]->[$y+1] += $error_diffusion;
 			$img_xy->[$x]->[$y+1] += $error_diffusion;
 			$img_xy->[$x+1]->[$y+1] += $error_diffusion;
 			$img_xy->[$x]->[$y+2] += $error_diffusion;
-	  }
+		}
 	}
 
-  return $img_dither;
+	return $img_dither;
 }
 
 
@@ -168,67 +207,68 @@ sub dither_floyd {
 	my $self = shift;
 	my $img = shift;
 
-  my $img_xy = [];
-  my $x_max = $img->width();
-  my $y_max = $img->height();
+	my $img_xy = [];
+	my $x_max = $img->width();
+	my $y_max = $img->height();
 
-  my $threshold = $self->rgb2hex( 255, 255, 255 )*0.5;
+	my $threshold = $self->rgb2hex( 255, 255, 255 )*0.5;
 
 	for (my $x = 0; $x <= $x_max; $x++) {
 		$img_xy->[$x] = [] unless defined $img_xy->[$x];
-	  for (my $y = 0; $y <= $y_max; $y++) {
-	  	$img_xy->[$x]->[$y] = $self->rgb2hex( $img->rgb( $img->getPixel($x,$y) ) );
+		for (my $y = 0; $y <= $y_max; $y++) {
+			$img_xy->[$x]->[$y] = $self->rgb2hex( $img->rgb( $img->getPixel($x,$y) ) );
 		}
 	}
 
 	my $img_dither = GD::Image->new($x_max, $y_max, 1);
-  my $white = $img_dither->colorAllocate(255,255,255);
-  my $black = $img_dither->colorAllocate(0,0,0); 
+	my $white = $img_dither->colorAllocate(255,255,255);
+	my $black = $img_dither->colorAllocate(0,0,0); 
 
 	my $w1=7/16;
-  my $w2=3/16;
-  my $w3=5/16;
-  my $w4=1/16;
+	my $w2=3/16;
+	my $w3=5/16;
+	my $w4=1/16;
 
 	for (my $y = 0; $y < $y_max; $y++) {
 		for (my $x = 0; $x < $x_max; $x++) {
-		  my $oldpixel = $img_xy->[$x]->[$y];
-		  my $newpixel = $oldpixel > $threshold ? $white : $black;
-      my $quant_error = $oldpixel - $newpixel;
 
-	    $img_dither->setPixel($x,$y,$newpixel);
+			my $oldpixel = $img_xy->[$x]->[$y];
+			my $newpixel = $oldpixel > $threshold ? $white : $black;
+			my $quant_error = $oldpixel - $newpixel;
 
-      if ($x + 1 <= $x_max) {
-      	my $oldpixel = $img_xy->[$x+1]->[$y];
-      	my $newpixel = int( $oldpixel + ($w1 * $quant_error) );
+			$img_dither->setPixel($x,$y,$newpixel);
 
-        $img_xy->[$x+1]->[$y] = $newpixel;
-      }
+			if ($x + 1 <= $x_max) {
+				my $oldpixel = $img_xy->[$x+1]->[$y];
+				my $newpixel = $oldpixel + ($w1 * $quant_error);
 
-      if (($x-1 > 0) && ($y+1 < $y_max)) {
-      	my $oldpixel = $img_xy->[$x-1]->[$y+1];
-      	my $newpixel = int( $oldpixel + ($w2 * $quant_error) );
+				$img_xy->[$x+1]->[$y] = $newpixel;
+			}
+
+			if (($x-1 > 0) && ($y+1 < $y_max)) {
+				my $oldpixel = $img_xy->[$x-1]->[$y+1];
+				my $newpixel = $oldpixel + ($w2 * $quant_error);
 
 				$img_xy->[$x-1]->[$y+1] = $newpixel;
-      }
+			}
 
-      if ($y + 1 <= $y_max) {
-      	my $oldpixel = $img_xy->[$x]->[$y+1];
-      	my $newpixel = int ( $oldpixel + ($w3 * $quant_error) );
+			if ($y + 1 <= $y_max) {
+				my $oldpixel = $img_xy->[$x]->[$y+1];
+				my $newpixel = $oldpixel + ($w3 * $quant_error);
 
-        $img_xy->[$x]->[$y+1] = $newpixel;
-      }
+				$img_xy->[$x]->[$y+1] = $newpixel;
+			}
 
-      if (($x + 1 <= $x_max) && ($y + 1 <= $y_max)) {
-      	my $oldpixel = $img_xy->[$x+1]->[$y+1];
-      	my $newpixel = int( $oldpixel + ($w4 * $quant_error) );
+			if (($x + 1 <= $x_max) && ($y + 1 <= $y_max)) {
+				my $oldpixel = $img_xy->[$x+1]->[$y+1];
+				my $newpixel = $oldpixel + ($w4 * $quant_error);
 
-      	$img_xy->[$x+1]->[$y+1] = $newpixel;
-      }
-	  }
+				$img_xy->[$x+1]->[$y+1] = $newpixel;
+			}
+		}
 	}
 
-  return $img_dither;
+	return $img_dither;
 }
 
 sub resize {
@@ -328,6 +368,18 @@ sub escpos {
 	}
 
 	return $out;
+}
+
+sub to_png {
+	my $self = shift;
+	my $img = shift;
+	my $filename = shift;
+
+	my $png_data = $img->png(0);
+	open my $fh, ">", $filename || die;
+	binmode($fh);
+	print $fh $png_data;
+	close $fh;
 }
 
 1;
