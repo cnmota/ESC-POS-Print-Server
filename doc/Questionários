@@ -1,0 +1,19 @@
+Questionário:
+	Secção
+		Pergunta1
+
+
+SurveyUserCRM
+  id AUTO_INCREMENT,
+
+  name,
+  email
+
+  email (PK),
+  n
+
+--------------------
+
+Temos que guardar info de cliente.
+Tipo de Respostas Opção Multipla, Unica, Livre.
+Respostas -
