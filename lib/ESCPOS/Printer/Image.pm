@@ -38,7 +38,6 @@ has max_width => (
 );
 
 #DENSITY
-# HD => 
 has density => (
 	is => 'rw',
 	required => 0,
@@ -70,16 +69,20 @@ sub BUILD {
 	my $img = GD::Image->new( $self->path() );
 	$img = $self->resize( $img );
 
+	$self->to_png($img, "resized.png");
+
 	if ($self->dither_method() eq 'Atkinson') {
 		$img = $self->grayscale( $img );
+		$self->to_png($img, "gray.png");
 		$img = $self->dither_atkinson( $img );
 	} elsif ($self->dither_method eq 'Floyd') {
 		$img = $self->grayscale( $img );
 		$img = $self->dither_floyd( $img );
+	} else {
+		$img = $self->resize( $img, 1 )
 	}
 
-	#$img = $self->resize( $img );
-	#$self->to_png($img, $self->dither_method().".png");
+	$self->to_png($img, $self->dither_method().".png");
 
 	my ($width,$height) = $img->getBounds();
 
@@ -142,13 +145,28 @@ sub grayscale {
 	#SHOULD BE MOVED TO FILTER ROLE
 
 	#CONVERT IMAGE TO GREYSSCALE
-	for (my $i = 0; $i < $img->colorsTotal(); $i++) {
-		my ($r, $g, $b) = $img->rgb($i);
-		my $gray = &grayscale_pixel( $r, $g, $b );
+	if ( defined $img->colorsTotal() ) {
+		for (my $i = 0; $i < $img->colorsTotal(); $i++) {
+			my ($r, $g, $b) = $img->rgb($i);
+			my $gray = &grayscale_pixel( $r, $g, $b );
 
-		$img->colorDeallocate($i);
-		$img->colorAllocate($gray,$gray,$gray);
-	}		
+			$img->colorDeallocate($i);
+			$img->colorAllocate($gray,$gray,$gray);
+		}
+	}	else {
+		my $x_max = $img->width();
+		my $y_max = $img->height();
+
+		for (my $y = 0; $y < $y_max; $y++) {
+			for (my $x = 0; $x < $x_max; $x++) {	
+				my ($r, $g, $b) = $img->rgb( $img->getPixel($x,$y) );
+				my $gray = &grayscale_pixel( $r, $g, $b );
+
+				my $i = $img->colorExact( $gray, $gray, $gray );
+				$img->setPixel($x, $y, $i);
+			}
+		}	
+	}	
 
 	return $img;
 }
@@ -202,7 +220,6 @@ sub dither_atkinson {
 	return $img_dither;
 }
 
-
 sub dither_floyd {
 	my $self = shift;
 	my $img = shift;
@@ -231,7 +248,6 @@ sub dither_floyd {
 
 	for (my $y = 0; $y < $y_max; $y++) {
 		for (my $x = 0; $x < $x_max; $x++) {
-
 			my $oldpixel = $img_xy->[$x]->[$y];
 			my $newpixel = $oldpixel > $threshold ? $white : $black;
 			my $quant_error = $oldpixel - $newpixel;
@@ -274,6 +290,7 @@ sub dither_floyd {
 sub resize {
 	my $self = shift;
 	my $orig = shift;
+	my $no_true_color = shift || 0;
 
 	my ($width,$height) = $orig->getBounds();
 
@@ -310,7 +327,7 @@ sub resize {
 	if ($scalex == 1 && $scaley == 1) {
 		return $orig;
 	} else {
-		my $image = GD::Image->new($nwidth, $nheight);
+		my $image = GD::Image->new($nwidth, $nheight, $no_true_color ? 0 : 1);
 		$image->copyResampled( $orig,0,0,0,0,$nwidth,$nheight,$width,$height );
 
 		return $image;
