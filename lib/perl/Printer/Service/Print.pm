@@ -83,7 +83,15 @@ sub handle_request {
   my $campaign = $self->get_current_campaign();
   
   if (defined $campaign) {
-    $self->add_footer( campaign => $campaign, doc_number => $self->get_doc_number( $data ) );
+    if (defined $campaign->{position} && $campaign->{position} == 1) {
+      $self->add_to_check( campaign => $campaign, doc_number => $self->get_doc_number( $data ) );
+      $self->printer()->text($data);
+    } else {
+      $self->printer()->text($data);
+      $self->add_to_check( campaign => $campaign, doc_number => $self->get_doc_number( $data ) );
+    }
+  } else {
+    $self->printer()->text($data);
   }
   
   $self->printer()->print();
@@ -164,7 +172,7 @@ sub add_footer {
     my $tree = HTML::TreeBuilder->new(); 
     my $root = $tree->parse_content( $campaign->{content} ); 
 
-    $self->dom_to_print(element => $root);
+    $self->dom_to_print(element => $root, campaign => $campaign);
     
     $self->printer()->linefeed();
     $self->printer()->align('C');
@@ -181,15 +189,16 @@ sub dom_to_print {
   my %params = @_;
 
   my $element = $params{element};
+  my $campaign = $params{campaign};
   
   if (ref($element) =~ /HTML\:\:/) {
-    $self->dom_to_print_tag(tag => $element->tag(), mode => 'start', element => $element);
+    $self->dom_to_print_tag(tag => $element->tag(), mode => 'start', element => $element, campaign => $campaign);
      
     foreach my $child (@{ $element->content_array_ref() || []}) {             
-      $self->dom_to_print(element => $child);
+      $self->dom_to_print(element => $child, campaign => $campaign);
     }   
     
-    $self->dom_to_print_tag(tag => $element->tag(), mode => 'end');
+    $self->dom_to_print_tag(tag => $element->tag(), mode => 'end', campaign => $campaign);
   } else {
     $self->printer()->text($element);
   }
@@ -198,6 +207,8 @@ sub dom_to_print {
 sub dom_to_print_tag {
   my $self = shift;
   my %params = @_;
+
+  my $campaign = $params{campaign};
  
   if ($params{tag} eq 'u') {
     if ($params{mode} eq 'start') {
@@ -246,8 +257,8 @@ sub dom_to_print_tag {
       my $file = $params{element}->attr('src');
     
       if (-e $self->config()->{app_dir}.'/data/cache/assets/'.$file) {
-  #      $self->printer()->linefeed();
-  #      $self->printer()->image( $self->config()->{app_dir}.'/data/cache/assets/'.$file, '24DD' ); 
+        $self->printer()->linefeed();
+        $self->printer()->image( $self->config()->{app_dir}.'/data/cache/assets/'.$file, $campaign->{quality} == 1 ? '24DD' : '8DD' ); 
       }
     }
   }

@@ -4,3 +4,9 @@
 *.png
 
 *.jpg
+
+data/cache/current
+
+data/cache/current
+
+*.gif
