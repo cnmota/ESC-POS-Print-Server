@@ -1,9 +1,12 @@
 package Printer::Service::Update;
 
 use Moo;
+
 use HTTP::Request;
 use LWP::UserAgent;
 use JSON::XS;
+
+with 'Printer::Remote';
 
 has config => (
   is => 'rw',
@@ -46,11 +49,10 @@ sub run {
 
 sub check {
   my $self = shift;
-  
-  my $req = HTTP::Request->new('GET' => $self->{config}->{url} . $self->{config}->{uuid});
-  $req->content_type('application/json');
-  
-  my $res = LWP::UserAgent->new()->request($req);
+
+  my $lwp = LWP::UserAgent->new();
+
+  my $res = $self->get_data( $self->{config}->{url} . $self->{config}->{uuid}, {});
   
   if ($res->code() eq '200') {
     my $raw_data = $res->content();
@@ -68,8 +70,8 @@ sub check {
       $write = 1 if ($parsed_data->{updated_at} > $mtime);
     } else {
       $write = 1;
-    }  
-    
+    } 
+
     if ($write) {
       print STDERR "WRITING NEW DATA\n";
       
@@ -80,14 +82,21 @@ sub check {
       foreach my $c_id (keys %{ $parsed_data->{data} || {}}) {
         my $campaign = $parsed_data->{data}->{$c_id};
         foreach my $asset ( @{ $campaign->{assets} } ) {
-          my $filename = split(/\//, $asset); undef;
-          print STDERR "$asset\n";
-          system( "cd ".$self->data_dir()."/cache/assets; wget -q -N $asset" );
+          my $res = $self->get_data( $asset, {});
+          my @parts = split(/\//, $asset);
+          my $filename = $parts[-1];
+  
+          if ($res->code() eq '200') {
+            my $raw_data = $res->content();
+            print STDERR $self->data_dir()."/cache/assets/$filename\n";
+            open my $fh, ">", $self->data_dir()."/cache/assets/$filename";
+            binmode($fh);
+            print $fh $raw_data;
+            close $fh;
+          }
         }
       }
     }
-
-
   }
 }
 
